@@ -2,26 +2,39 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Tareas Oficina</title>
+<title>Calendario de Tareas</title>
 
 <style>
 body {
   font-family: Arial, sans-serif;
-  max-width: 500px;
+  max-width: 800px;
   margin: auto;
 }
 h1 {
   text-align: center;
 }
-input, button {
-  width: 100%;
-  padding: 8px;
-  margin: 6px 0;
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
 }
-li {
-  margin: 6px 0;
+.day {
+  border: 1px solid #ccc;
+  padding: 10px;
+  min-height: 80px;
+  cursor: pointer;
 }
-.completada {
+.day:hover {
+  background: #f0f0f0;
+}
+.selected {
+  background: #d0e7ff;
+}
+.task {
+  display: flex;
+  align-items: center;
+}
+.task span.completed {
   text-decoration: line-through;
   color: gray;
 }
@@ -30,52 +43,88 @@ li {
 
 <body>
 
-<h1>Tareas de la Oficina</h1>
+<h1>Calendario de Tareas</h1>
 
-<input id="taskText" placeholder="Nueva tarea">
-<input id="taskDate" type="date">
+<div class="calendar" id="calendar"></div>
+
+<h3 id="selectedDateTitle">Selecciona un día</h3>
+
+<input id="taskInput" placeholder="Nueva tarea">
 <button onclick="addTask()">Agregar tarea</button>
 
-<h3>Tareas</h3>
 <ul id="taskList"></ul>
 
-<button onclick="generateReport()">Generar reporte</button>
-<p id="report"></p>
-
 <script>
-let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
+const calendar = document.getElementById("calendar");
+const taskList = document.getElementById("taskList");
+const selectedDateTitle = document.getElementById("selectedDateTitle");
 
-function saveTasks() {
-  localStorage.setItem("tasks", JSON.stringify(tasks));
+let selectedDate = null;
+let tasks = JSON.parse(localStorage.getItem("calendarTasks")) || {};
+
+const today = new Date();
+const year = today.getFullYear();
+const month = today.getMonth();
+
+function renderCalendar() {
+  calendar.innerHTML = "";
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for (let i = 0; i < firstDay; i++) {
+    calendar.innerHTML += `<div></div>`;
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateKey = `${year}-${month + 1}-${day}`;
+    const div = document.createElement("div");
+    div.className = "day";
+    div.innerHTML = `<strong>${day}</strong>`;
+    if (tasks[dateKey]) {
+      div.innerHTML += `<br>📌 ${tasks[dateKey].length}`;
+    }
+    div.onclick = () => selectDate(dateKey, div);
+    calendar.appendChild(div);
+  }
+}
+
+function selectDate(dateKey, element) {
+  document.querySelectorAll(".day").forEach(d => d.classList.remove("selected"));
+  element.classList.add("selected");
+
+  selectedDate = dateKey;
+  selectedDateTitle.innerText = `Tareas para ${dateKey}`;
+  renderTasks();
 }
 
 function addTask() {
-  if (!taskText.value || !taskDate.value) {
-    alert("Completa la tarea y la fecha");
-    return;
-  }
+  if (!selectedDate || !taskInput.value) return;
 
-  tasks.push({
-    text: taskText.value,
-    date: taskDate.value,
+  if (!tasks[selectedDate]) tasks[selectedDate] = [];
+
+  tasks[selectedDate].push({
+    text: taskInput.value,
     done: false
   });
 
-  taskText.value = "";
+  taskInput.value = "";
   saveTasks();
   renderTasks();
+  renderCalendar();
 }
 
 function renderTasks() {
   taskList.innerHTML = "";
+  const dayTasks = tasks[selectedDate] || [];
 
-  tasks.forEach((task, index) => {
+  dayTasks.forEach((task, index) => {
     const li = document.createElement("li");
+    li.className = "task";
     li.innerHTML = `
       <input type="checkbox" ${task.done ? "checked" : ""}
-        onclick="toggleTask(${index})">
-      <span class="${task.done ? "completada" : ""}">
-        ${task.text} (${task.date})
+        onchange="toggleTask(${index})">
+      <span class="${task.done ? "completed" : ""}">
+        ${task.text}
       </span>
     `;
     taskList.appendChild(li);
@@ -83,18 +132,16 @@ function renderTasks() {
 }
 
 function toggleTask(index) {
-  tasks[index].done = !tasks[index].done;
+  tasks[selectedDate][index].done = !tasks[selectedDate][index].done;
   saveTasks();
   renderTasks();
 }
 
-function generateReport() {
-  const total = tasks.length;
-  const completed = tasks.filter(t => t.done).length;
-  report.innerText = `Completadas: ${completed} / Total: ${total}`;
+function saveTasks() {
+  localStorage.setItem("calendarTasks", JSON.stringify(tasks));
 }
 
-renderTasks();
+renderCalendar();
 </script>
 
 </body>
