@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Tareas Oficina</title>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  max-width: 450px;
+  margin: auto;
+}
+input, button {
+  width: 100%;
+  padding: 8px;
+  margin: 6px 0;
+}
+li {
+  margin: 6px 0;
+}
+</style>
+</head>
+
+<body>
+
+<h2 id="title">Ingreso</h2>
+
+<div id="auth">
+  <input id="email" type="email" placeholder="Correo">
+  <input id="password" type="password" placeholder="Contraseña">
+  <button onclick="login()">Entrar</button>
+  <button onclick="register()">Registrar</button>
+</div>
+
+<div id="app" style="display:none">
+  <input id="taskText" placeholder="Nueva tarea">
+  <input id="taskDate" type="date">
+  <button onclick="addTask()">Agregar tarea</button>
+
+  <ul id="taskList"></ul>
+
+  <button onclick="makeReport()">Generar reporte</button>
+  <p id="report"></p>
+
+  <button onclick="logout()">Cerrar sesión</button>
+</div>
+
+<script>
+const supabase = supabase.createClient(
+  "TU_PROJECT_URL",
+  "TU_ANON_KEY"
+);
+
+// ---------- AUTH ----------
+async function login() {
+  const { error } = await supabase.auth.signInWithPassword({
+    email: email.value,
+    password: password.value
+  });
+  if (error) alert(error.message);
+  else init();
+}
+
+async function register() {
+  const { error } = await supabase.auth.signUp({
+    email: email.value,
+    password: password.value
+  });
+  if (error) alert(error.message);
+  else init();
+}
+
+async function logout() {
+  await supabase.auth.signOut();
+  location.reload();
+}
+
+// ---------- APP ----------
+async function init() {
+  auth.style.display = "none";
+  app.style.display = "block";
+  title.innerText = "Mis tareas";
+  loadTasks();
+}
+
+async function addTask() {
+  const user = (await supabase.auth.getUser()).data.user;
+  await supabase.from("tasks").insert({
+    user_id: user.id,
+    texto: taskText.value,
+    fecha: taskDate.value
+  });
+  taskText.value = "";
+  loadTasks();
+}
+
+async function loadTasks() {
+  const user = (await supabase.auth.getUser()).data.user;
+  const { data } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at");
+
+  taskList.innerHTML = "";
+  data.forEach(t => {
+    taskList.innerHTML += `
+      <li>
+        <input type="checkbox" ${t.completada ? "checked" : ""}
+          onclick="toggleTask('${t.id}', ${t.completada})">
+        <span style="text-decoration:${t.completada ? "line-through" : "none"}">
+          ${t.texto} (${t.fecha})
+        </span>
+      </li>`;
+  });
+}
+
+async function toggleTask(id, estado) {
+  await supabase.from("tasks")
+    .update({ completada: !estado })
+    .eq("id", id);
+  loadTasks();
+}
+
+async function makeReport() {
+  const user = (await supabase.auth.getUser()).data.user;
+  const { data } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("user_id", user.id);
+
+  const done = data.filter(t => t.completada).length;
+  report.innerText = `Completadas: ${done} / Total: ${data.length}`;
+}
+
+// ---------- SESSION ----------
+supabase.auth.getSession().then(r => {
+  if (r.data.session) init();
+});
+</script>
+
+</body>
+</html>
