@@ -4,13 +4,14 @@
 <meta charset="UTF-8">
 <title>Tareas Oficina</title>
 
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-
 <style>
 body {
   font-family: Arial, sans-serif;
-  max-width: 450px;
+  max-width: 500px;
   margin: auto;
+}
+h1 {
+  text-align: center;
 }
 input, button {
   width: 100%;
@@ -20,125 +21,80 @@ input, button {
 li {
   margin: 6px 0;
 }
+.completada {
+  text-decoration: line-through;
+  color: gray;
+}
 </style>
 </head>
 
 <body>
 
-<h2 id="title">Ingreso</h2>
+<h1>Tareas de la Oficina</h1>
 
-<div id="auth">
-  <input id="email" type="email" placeholder="Correo">
-  <input id="password" type="password" placeholder="Contraseña">
-  <button onclick="login()">Entrar</button>
-  <button onclick="register()">Registrar</button>
-</div>
+<input id="taskText" placeholder="Nueva tarea">
+<input id="taskDate" type="date">
+<button onclick="addTask()">Agregar tarea</button>
 
-<div id="app" style="display:none">
-  <input id="taskText" placeholder="Nueva tarea">
-  <input id="taskDate" type="date">
-  <button onclick="addTask()">Agregar tarea</button>
+<h3>Tareas</h3>
+<ul id="taskList"></ul>
 
-  <ul id="taskList"></ul>
-
-  <button onclick="makeReport()">Generar reporte</button>
-  <p id="report"></p>
-
-  <button onclick="logout()">Cerrar sesión</button>
-</div>
+<button onclick="generateReport()">Generar reporte</button>
+<p id="report"></p>
 
 <script>
-const supabase = supabase.createClient(
-  "TU_PROJECT_URL",
-  "TU_ANON_KEY"
-);
+let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
 
-// ---------- AUTH ----------
-async function login() {
-  const { error } = await supabase.auth.signInWithPassword({
-    email: email.value,
-    password: password.value
+function saveTasks() {
+  localStorage.setItem("tasks", JSON.stringify(tasks));
+}
+
+function addTask() {
+  if (!taskText.value || !taskDate.value) {
+    alert("Completa la tarea y la fecha");
+    return;
+  }
+
+  tasks.push({
+    text: taskText.value,
+    date: taskDate.value,
+    done: false
   });
-  if (error) alert(error.message);
-  else init();
-}
 
-async function register() {
-  const { error } = await supabase.auth.signUp({
-    email: email.value,
-    password: password.value
-  });
-  if (error) alert(error.message);
-  else init();
-}
-
-async function logout() {
-  await supabase.auth.signOut();
-  location.reload();
-}
-
-// ---------- APP ----------
-async function init() {
-  auth.style.display = "none";
-  app.style.display = "block";
-  title.innerText = "Mis tareas";
-  loadTasks();
-}
-
-async function addTask() {
-  const user = (await supabase.auth.getUser()).data.user;
-  await supabase.from("tasks").insert({
-    user_id: user.id,
-    texto: taskText.value,
-    fecha: taskDate.value
-  });
   taskText.value = "";
-  loadTasks();
+  saveTasks();
+  renderTasks();
 }
 
-async function loadTasks() {
-  const user = (await supabase.auth.getUser()).data.user;
-  const { data } = await supabase
-    .from("tasks")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at");
-
+function renderTasks() {
   taskList.innerHTML = "";
-  data.forEach(t => {
-    taskList.innerHTML += `
-      <li>
-        <input type="checkbox" ${t.completada ? "checked" : ""}
-          onclick="toggleTask('${t.id}', ${t.completada})">
-        <span style="text-decoration:${t.completada ? "line-through" : "none"}">
-          ${t.texto} (${t.fecha})
-        </span>
-      </li>`;
+
+  tasks.forEach((task, index) => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <input type="checkbox" ${task.done ? "checked" : ""}
+        onclick="toggleTask(${index})">
+      <span class="${task.done ? "completada" : ""}">
+        ${task.text} (${task.date})
+      </span>
+    `;
+    taskList.appendChild(li);
   });
 }
 
-async function toggleTask(id, estado) {
-  await supabase.from("tasks")
-    .update({ completada: !estado })
-    .eq("id", id);
-  loadTasks();
+function toggleTask(index) {
+  tasks[index].done = !tasks[index].done;
+  saveTasks();
+  renderTasks();
 }
 
-async function makeReport() {
-  const user = (await supabase.auth.getUser()).data.user;
-  const { data } = await supabase
-    .from("tasks")
-    .select("*")
-    .eq("user_id", user.id);
-
-  const done = data.filter(t => t.completada).length;
-  report.innerText = `Completadas: ${done} / Total: ${data.length}`;
+function generateReport() {
+  const total = tasks.length;
+  const completed = tasks.filter(t => t.done).length;
+  report.innerText = `Completadas: ${completed} / Total: ${total}`;
 }
 
-// ---------- SESSION ----------
-supabase.auth.getSession().then(r => {
-  if (r.data.session) init();
-});
+renderTasks();
 </script>
 
 </body>
